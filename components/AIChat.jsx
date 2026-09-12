@@ -16,6 +16,8 @@ export default function AIChat() {
     sendMessage,
     status,
     stop,
+    error,
+    regenerate,
   } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -34,9 +36,29 @@ export default function AIChat() {
 
     setInput("");
 
-    await sendMessage({
-      text,
-    });
+    try {
+      await sendMessage({
+        text,
+      });
+    } catch (sendError) {
+      console.error("Message failed:", sendError);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (isStreaming) return;
+
+    try {
+      await regenerate();
+    } catch (retryError) {
+      console.error("Retry failed:", retryError);
+    }
+  };
+
+  const handleExamplePrompt = () => {
+    setInput(
+      "Analyze my photography idea: a cinematic portrait at sunset using warm backlighting and shallow depth of field."
+    );
   };
 
   const handleScroll = () => {
@@ -77,7 +99,7 @@ export default function AIChat() {
 
     if (!isAnalyzeTool) return null;
 
-    // 1. Input streaming
+    // 1. Tool input is streaming
     if (part.state === "input-streaming") {
       return (
         <div
@@ -88,6 +110,7 @@ export default function AIChat() {
 
           <div>
             <h3>Preparing analysis...</h3>
+
             <p>
               Pixora AI is preparing the photography
               idea for analysis.
@@ -97,7 +120,7 @@ export default function AIChat() {
       );
     }
 
-    // 2. Input available
+    // 2. Tool input is ready
     if (part.state === "input-available") {
       return (
         <div
@@ -118,7 +141,7 @@ export default function AIChat() {
       );
     }
 
-    // 3. Output available
+    // 3. Tool completed successfully
     if (part.state === "output-available") {
       const result = part.output;
 
@@ -166,7 +189,7 @@ export default function AIChat() {
       );
     }
 
-    // 4. Output error
+    // 4. Tool failed
     if (part.state === "output-error") {
       return (
         <div
@@ -208,7 +231,8 @@ export default function AIChat() {
         className="ai-messages"
         onScroll={handleScroll}
       >
-        {messages.length === 0 && (
+        {/* EMPTY STATE */}
+        {messages.length === 0 && !error && (
           <div className="ai-empty-state">
             <h2>Ask Pixora AI</h2>
 
@@ -218,18 +242,24 @@ export default function AIChat() {
               photography ideas.
             </p>
 
-            <div className="tool-demo-hint">
+            <button
+              type="button"
+              className="tool-demo-hint"
+              onClick={handleExamplePrompt}
+            >
               Try:
               <br />
+
               <strong>
                 Analyze my photography idea: a cinematic
                 portrait at sunset using warm backlighting
                 and shallow depth of field.
               </strong>
-            </div>
+            </button>
           </div>
         )}
 
+        {/* MESSAGES */}
         {messages.map((message) => (
           <div
             key={message.id}
@@ -261,12 +291,43 @@ export default function AIChat() {
           </div>
         ))}
 
+        {/* LOADING / SLOW RESPONSE STATE */}
         {status === "submitted" && (
           <div className="ai-thinking">
             <span />
             <span />
             <span />
+
             <p>Pixora AI is thinking...</p>
+          </div>
+        )}
+
+        {/* CHAT / STREAM ERROR STATE */}
+        {error && (
+          <div className="ai-error-state">
+            <div className="ai-error-icon">
+              ⚠️
+            </div>
+
+            <div className="ai-error-content">
+              <h3>Pixora AI couldn't respond</h3>
+
+              <p>
+                Something interrupted the response.
+                Your conversation is still safe.
+              </p>
+
+              <button
+                type="button"
+                className="retry-button"
+                onClick={handleRetry}
+                disabled={isStreaming}
+              >
+                {isStreaming
+                  ? "Retrying..."
+                  : "Retry response"}
+              </button>
+            </div>
           </div>
         )}
       </div>
